@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WORK TRACKER</title>
+  <style>
+    :root{
+      --bg:#0f0f10; /* quase preto */
+      --panel:#1a1b1e; /* cinza escuro */
+      --panel-2:#24262b; /* cinza médio */
+      --text:#e6e7e9; /* quase branco */
+      --muted:#a8aab0; /* cinza claro */
+      --accent:#ffffff; /* branco para foco/bordas */
+      --good:#b6f397; /* feedback sutil (ainda monocromático-ish) */
+      --danger:#ffb3b3;
+      --shadow: 0 8px 30px rgba(0,0,0,.35);
+      --radius: 16px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+      background:linear-gradient(180deg, #0c0c0d 0%, #121316 100%);
+      color:var(--text);
+    }
+    .container{max-width:980px; margin:0 auto; padding:28px 18px;}
+    header{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:24px}
+    .title{font-size:32px; font-weight:900; letter-spacing:.08em; text-align:left}
+    .points{
+      display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:999px; background:var(--panel);
+      border:1px solid #2d2f35; box-shadow:var(--shadow); cursor:pointer; user-select:none;
+    }
+    .points strong{font-size:18px}
+    .subtle{color:var(--muted); font-size:12px}
+
+    .card{background:var(--panel); border:1px solid #2b2d33; border-radius:var(--radius); box-shadow:var(--shadow)}
+    .timer-card{display:grid; grid-template-columns:1fr; gap:18px; padding:28px}
+
+    .timer{display:flex; align-items:center; justify-content:center; gap:10px; font-weight:800;}
+    .digit-col{display:flex; flex-direction:column; align-items:center; gap:4px; min-width:42px}
+    .digit-btn{all:unset; font-size:12px; color:var(--muted); cursor:pointer; padding:4px 2px; border-radius:6px}
+    .digit-btn:hover{color:var(--text); background:rgba(255,255,255,.06)}
+    .digit{font-size:64px; line-height:1; padding:0 4px; letter-spacing:.02em;}
+    .colon{font-size:56px; opacity:.9; padding:0 6px}
+
+    .controls{display:flex; gap:12px; justify-content:center}
+    .btn{all:unset; cursor:pointer; padding:12px 18px; border-radius:12px; border:1px solid #2f3137; background:var(--panel-2); box-shadow:var(--shadow)}
+    .btn:hover{filter:brightness(1.08)}
+    .btn.primary{background:#2f3137; border-color:#3a3d45}
+    .btn.danger{background:#2a2222; border-color:#3b2c2c}
+
+    .layout{display:grid; grid-template-columns:1.2fr .8fr; gap:18px; align-items:start}
+
+    .history{padding:18px}
+    .history h3{margin:0 0 10px 0; font-size:16px; color:var(--muted)}
+    .item{display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border:1px solid #2c2e34; border-radius:12px; background:#191a1d}
+    .item + .item{margin-top:10px}
+    .badge{font-size:12px; padding:4px 8px; border-radius:999px; border:1px solid #3a3d45; background:#22242a}
+
+    .link{color:var(--text); opacity:.9; text-decoration:underline; cursor:pointer}
+
+    /* Modals */
+    .modal-backdrop{position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; padding:16px;}
+    .modal{width:min(560px, 100%); background:var(--panel); border:1px solid #30333a; border-radius:18px; box-shadow:var(--shadow);}
+    .modal header{padding:16px 18px; border-bottom:1px solid #2f3238}
+    .modal .content{padding:16px 18px}
+    .modal footer{padding:16px 18px; display:flex; justify-content:flex-end; gap:10px; border-top:1px solid #2f3238}
+    .x{all:unset; cursor:pointer; color:var(--muted)}
+    .x:hover{color:var(--text)}
+
+    .field{display:flex; flex-direction:column; gap:6px; margin:10px 0}
+    input[type="text"], textarea, select{
+      width:100%; padding:10px 12px; border-radius:10px; border:1px solid #343740; background:#17181b; color:var(--text);
+    }
+    textarea{min-height:90px; resize:vertical}
+
+    .tabs{display:flex; gap:8px; padding:6px; background:#1c1d21; border:1px solid #2b2e36; border-radius:12px; width:max-content}
+    .tab{all:unset; padding:8px 12px; border-radius:8px; cursor:pointer; color:var(--muted)}
+    .tab.active{background:#2a2b31; color:var(--text);}
+
+    .report-list{display:flex; flex-direction:column; gap:10px; margin-top:12px}
+    .report-item{display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border:1px solid #2c2e34; border-radius:12px; background:#191a1d}
+
+    .hidden{display:none !important}
+    .muted{color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title">WORK TRACKER</div>
+      <div id="pointsBadge" class="points" title="Clique para ajustar seus pontos manualmente">
+        <div class="subtle">Pontos</div>
+        <strong id="pointsTotal">0</strong>
+      </div>
+    </header>
+
+    <div class="layout">
+      <!-- Coluna principal: Timer + controles -->
+      <section class="card timer-card">
+        <!-- Timer (00:00 com dígitos editáveis quando parado) -->
+        <div id="timer" class="timer"></div>
+
+        <div class="controls">
+          <button id="btnStart" class="btn primary">▶️ Iniciar</button>
+          <button id="btnInterrupt" class="btn danger hidden">⏹️ Interromper</button>
+          <button id="btnReports" class="btn">📊 Relatórios</button>
+        </div>
+      </section>
+
+      <!-- Coluna lateral: Histórico -->
+      <aside class="card history">
+        <h3>Histórico de Ciclos</h3>
+        <div id="historyList"></div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Modal ao finalizar ciclo -->
+  <div id="cycleModal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true">
+      <header>
+        <strong>Registrar ciclo concluído</strong>
+        <button class="x" id="cycleClose">✕</button>
+      </header>
+      <div class="content">
+        <div class="field">
+          <label>Título*:</label>
+          <input id="cycleTitle" type="text" placeholder="Ex.: Foco em arte do jogo" />
+        </div>
+        <div class="field">
+          <label>Descrição (opcional):</label>
+          <textarea id="cycleDesc" placeholder="O que foi feito nesse ciclo?"></textarea>
+        </div>
+        <div class="field">
+          <label>Nível de desempenho* (1–5):</label>
+          <select id="cyclePerf">
+            <option value="">Selecione…</option>
+            <option value="1">1 - Baixo</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5 - Máximo</option>
+          </select>
+        </div>
+        <div class="muted">* Campos obrigatórios</div>
+      </div>
+      <footer>
+        <button class="btn" id="cycleCancel">Cancelar</button>
+        <button class="btn primary" id="cycleConfirm">Confirmar</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal: Detalhe do ciclo (ao clicar no histórico) -->
+  <div id="detailModal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true">
+      <header>
+        <strong id="detailTitle">Detalhe do ciclo</strong>
+        <button class="x" id="detailClose">✕</button>
+      </header>
+      <div class="content" id="detailContent"></div>
+      <footer>
+        <button class="btn" id="detailOk">Fechar</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal: Relatórios (Mensal → Semanal → Diário) -->
+  <div id="reportsModal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true">
+      <header>
+        <strong>Relatórios de Desempenho</strong>
+        <button class="x" id="reportsClose">✕</button>
+      </header>
+      <div class="content">
+        <div class="tabs">
+          <button id="tabMonthly" class="tab active">Mensal</button>
+          <button id="tabWeekly" class="tab">Semanal</button>
+          <button id="tabDaily" class="tab">Diário</button>
+        </div>
+        <div id="reportsView" class="report-list"></div>
+      </div>
+      <footer>
+        <button class="btn" id="reportsBack" title="Subir um nível">◀ Voltar</button>
+        <button class="btn primary" id="reportsDone">Fechar</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal: Pontos (ajuste manual) -->
+  <div id="pointsModal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true">
+      <header>
+        <strong>Ajustar Pontos</strong>
+        <button class="x" id="pointsClose">✕</button>
+      </header>
+      <div class="content">
+        <div class="field">
+          <label>Título da transação*:</label>
+          <input id="txTitle" type="text" placeholder="Ex.: Recompensa comprada" />
+        </div>
+        <div class="field">
+          <label>Quantidade (use negativo para retirar):</label>
+          <input id="txAmount" type="number" placeholder="Ex.: 5 ou -3" />
+        </div>
+        <div class="muted">Saldo atual: <span id="pointsNow">0</span></div>
+        <div class="field">
+          <label>Histórico de transações</label>
+          <div id="txList" class="report-list"></div>
+        </div>
+      </div>
+      <footer>
+        <button class="btn" id="txCancel">Cancelar</button>
+        <button class="btn primary" id="txConfirm">Confirmar</button>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    // ======= Persistência =======
+    const STORAGE_KEY = 'worktracker_v1';
+    function loadData(){
+      try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { cycles:[], transactions:[] }; }catch(e){ return { cycles:[], transactions:[] } }
+    }
+    function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }
+
+    let DB = loadData();
+
+    // ======= Utilidades de Data/Tempo =======
+    const pad2 = (n)=> String(n).padStart(2,'0');
+    function todayKey(d=new Date()){
+      return d.toISOString().slice(0,10); // YYYY-MM-DD
+    }
+    function weekKey(d){
+      const dt = new Date(d);
+      // ISO week (aprox): pega quinta como referência
+      const day = (dt.getUTCDay()+6)%7; // 0..6, segunda=0
+      dt.setUTCDate(dt.getUTCDate()-day+3);
+      const firstThursday = new Date(Date.UTC(dt.getUTCFullYear(),0,4));
+      const diff = dt - firstThursday;
+      const week = 1 + Math.round(diff / (7*24*3600*1000));
+      return `${dt.getUTCFullYear()}-W${pad2(week)}`;
+    }
+    function monthKey(d){
+      const dt = new Date(d);
+      return `${dt.getFullYear()}-${pad2(dt.getMonth()+1)}`; // YYYY-MM
+    }
+
+    // ======= Estado do Timer/Dígitos =======
+    let digits = [0,2,0,0]; // MM:SS -> 20:00 default
+    let configuredSeconds = calcSecondsFromDigits();
+    let timeLeft = configuredSeconds;
+    let running = false;
+    let timerId = null;
+
+    // ======= Elementos =======
+    const timerEl = document.getElementById('timer');
+    const btnStart = document.getElementById('btnStart');
+    const btnInterrupt = document.getElementById('btnInterrupt');
+    const historyList = document.getElementById('historyList');
+
+    const cycleModal = document.getElementById('cycleModal');
+    const cycleTitle = document.getElementById('cycleTitle');
+    const cycleDesc = document.getElementById('cycleDesc');
+    const cyclePerf = document.getElementById('cyclePerf');
+    const cycleConfirm = document.getElementById('cycleConfirm');
+    const cycleCancel = document.getElementById('cycleCancel');
+    const cycleClose = document.getElementById('cycleClose');
+
+    const detailModal = document.getElementById('detailModal');
+    const detailClose = document.getElementById('detailClose');
+    const detailOk = document.getElementById('detailOk');
+    const detailTitle = document.getElementById('detailTitle');
+    const detailContent = document.getElementById('detailContent');
+
+    const reportsModal = document.getElementById('reportsModal');
+    const tabMonthly = document.getElementById('tabMonthly');
+    const tabWeekly = document.getElementById('tabWeekly');
+    const tabDaily = document.getElementById('tabDaily');
+    const reportsView = document.getElementById('reportsView');
+    const reportsClose = document.getElementById('reportsClose');
+    const reportsBack = document.getElementById('reportsBack');
+    const reportsDone = document.getElementById('reportsDone');
+
+    const pointsBadge = document.getElementById('pointsBadge');
+    const pointsTotal = document.getElementById('pointsTotal');
+    const pointsModal = document.getElementById('pointsModal');
+    const pointsClose = document.getElementById('pointsClose');
+    const pointsNow = document.getElementById('pointsNow');
+    const txTitle = document.getElementById('txTitle');
+    const txAmount = document.getElementById('txAmount');
+    const txList = document.getElementById('txList');
+    const txCancel = document.getElementById('txCancel');
+    const txConfirm = document.getElementById('txConfirm');
+
+    // ======= Render do Timer (dígitos editáveis quando parado) =======
+    function calcSecondsFromDigits(){
+      const minutes = digits[0]*10 + digits[1];
+      const seconds = digits[2]*10 + digits[3];
+      return minutes*60 + seconds;
+    }
+
+    function updateConfiguredFromTimeLeft(){
+      // mantém os dígitos sincronizados com timeLeft quando NÃO está rodando
+      if(!running){
+        const m = Math.floor(timeLeft/60);
+        const s = timeLeft % 60;
+        digits = [Math.floor(m/10), m%10, Math.floor(s/10), s%10];
+      }
+    }
+
+    function renderTimer(){
+      timerEl.innerHTML = '';
+      const m = Math.floor(timeLeft/60);
+      const s = timeLeft % 60;
+      const showDigits = [Math.floor(m/10), m%10, Math.floor(s/10), s%10];
+
+      showDigits.forEach((d, i)=>{
+        const col = document.createElement('div');
+        col.className = 'digit-col';
+        if(!running){
+          const up = document.createElement('button'); up.className='digit-btn'; up.textContent='▲';
+          up.onclick = ()=> changeDigit(i, +1);
+          col.appendChild(up);
+        }
+        const span = document.createElement('span'); span.className='digit'; span.textContent = d;
+        col.appendChild(span);
+        if(!running){
+          const down = document.createElement('button'); down.className='digit-btn'; down.textContent='▼';
+          down.onclick = ()=> changeDigit(i, -1);
+          col.appendChild(down);
+        }
+        timerEl.appendChild(col);
+        if(i===1){
+          const colon = document.createElement('span'); colon.className='colon'; colon.textContent=':'; timerEl.appendChild(colon);
+        }
+      })
+    }
+
+    function changeDigit(index, dir){
+      const current = digits[index];
+      let next = (current + dir) % 10; if(next < 0) next += 10;
+      digits[index] = next;
+      configuredSeconds = calcSecondsFromDigits();
+      if(configuredSeconds === 0){
+        // impede 00:00 — força 00:01 mínimo
+        digits = [0,0,0,1];
+        configuredSeconds = 1;
+      }
+      timeLeft = configuredSeconds; // reflete no relógio
+      renderTimer();
+    }
+
+    // ======= Lógica do Timer =======
+    function startTimer(){
+      if(running) return;
+      configuredSeconds = calcSecondsFromDigits();
+      if(configuredSeconds <= 0){ return; }
+      timeLeft = configuredSeconds;
+      running = true;
+      btnStart.classList.add('hidden');
+      btnInterrupt.classList.remove('hidden');
+      renderTimer();
+      timerId = setInterval(()=>{
+        timeLeft -= 1;
+        if(timeLeft <= 0){
+          clearInterval(timerId); timerId=null; running=false;
+          btnInterrupt.classList.add('hidden');
+          btnStart.classList.remove('hidden');
+          timeLeft = configuredSeconds; // volta ao configurado
+          renderTimer();
+          openCycleModal();
+        } else {
+          // atualização live sem re-render pesado
+          const m = Math.floor(timeLeft/60), s = timeLeft%60;
+          // apenas atualiza texto diretamente
+          updateConfiguredFromTimeLeft();
+          renderTimer();
+        }
+      }, 1000);
+    }
+
+    function interruptTimer(){
+      if(timerId) clearInterval(timerId);
+      timerId = null; running=false;
+      btnInterrupt.classList.add('hidden');
+      btnStart.classList.remove('hidden');
+      timeLeft = configuredSeconds; // volta ao tempo inicial
+      renderTimer();
+    }
+
+    // ======= Modal de ciclo concluído =======
+    function openCycleModal(){
+      cycleTitle.value=''; cycleDesc.value=''; cyclePerf.value='';
+      cycleModal.classList.remove('hidden');
+    }
+    function closeCycleModal(){ cycleModal.classList.add('hidden'); }
+
+    function confirmCycle(){
+      const title = cycleTitle.value.trim();
+      const perf = parseInt(cyclePerf.value, 10);
+      if(!title || !(perf>=1 && perf<=5)) return;
+      const desc = cycleDesc.value.trim();
+      const now = new Date();
+      const cycle = {
+        id: crypto.randomUUID(),
+        date: now.toISOString(),
+        dayKey: todayKey(now),
+        weekKey: weekKey(now),
+        monthKey: monthKey(now),
+        title, description: desc, performance: perf,
+        duration: configuredSeconds
+      };
+      DB.cycles.push(cycle);
+      // Pontos: somamos o desempenho do ciclo ao saldo (como derivado). Não somamos aqui para evitar duplicidade; o saldo total é calculado = soma(perf) + soma(transações)
+      saveData();
+      closeCycleModal();
+      renderHistory();
+      renderPoints();
+    }
+
+    // ======= Histórico =======
+    function renderHistory(){
+      historyList.innerHTML='';
+      if(DB.cycles.length===0){
+        const empty = document.createElement('div');
+        empty.className='muted'; empty.textContent='Nenhum ciclo ainda.'; historyList.appendChild(empty); return;
+      }
+      // Mostra do mais recente para o mais antigo
+      [...DB.cycles].sort((a,b)=> b.date.localeCompare(a.date)).forEach(cycle=>{
+        const div = document.createElement('div'); div.className='item';
+        const left = document.createElement('div');
+        left.innerHTML = `<strong>${cycle.title}</strong><div class="subtle">${new Date(cycle.date).toLocaleString()} • ${Math.floor(cycle.duration/60)}m</div>`;
+        const right = document.createElement('div'); right.className='badge'; right.textContent = `★ ${cycle.performance}`;
+        div.appendChild(left); div.appendChild(right);
+        div.onclick = ()=> openDetail(cycle);
+        historyList.appendChild(div);
+      });
+    }
+
+    function openDetail(cycle){
+      detailTitle.textContent = cycle.title;
+      detailContent.innerHTML = `
+        <div class="field"><strong>Data:</strong> ${new Date(cycle.date).toLocaleString()}</div>
+        <div class="field"><strong>Desempenho:</strong> ${cycle.performance}</div>
+        <div class="field"><strong>Duração:</strong> ${Math.floor(cycle.duration/60)}m ${cycle.duration%60}s</div>
+        ${cycle.description ? `<div class="field"><strong>Descrição:</strong><br>${escapeHtml(cycle.description)}</div>` : '<div class="muted">Sem descrição</div>'}
+      `;
+      detailModal.classList.remove('hidden');
+    }
+
+    function closeDetail(){ detailModal.classList.add('hidden'); }
+
+    // ======= Relatórios =======
+    let currentReportTab = 'monthly';
+    let currentContext = null; // usado para navegação (ex.: mês selecionado -> lista de semanas)
+
+    function openReports(){ reportsModal.classList.remove('hidden'); setActiveTab('monthly'); }
+    function closeReports(){ reportsModal.classList.add('hidden'); currentContext=null; }
+
+    function setActiveTab(which){
+      currentReportTab = which;
+      tabMonthly.classList.toggle('active', which==='monthly');
+      tabWeekly.classList.toggle('active', which==='weekly');
+      tabDaily.classList.toggle('active', which==='daily');
+      currentContext=null; // reset nível ao entrar
+      renderReports();
+    }
+
+    function renderReports(){
+      reportsView.innerHTML='';
+      if(currentReportTab==='monthly'){
+        const groups = groupBy(DB.cycles, c=>c.monthKey);
+        const keys = Object.keys(groups).sort().reverse();
+        keys.forEach(mk=>{
+          const list = groups[mk];
+          const total = list.reduce((s,c)=>s+c.performance,0);
+          const item = reportItem(`${mk}`, `Pontos: ${total}`);
+          item.onclick = ()=>{ currentContext={ monthKey: mk }; setActiveTab('weekly'); };
+          reportsView.appendChild(item);
+        });
+        if(keys.length===0) reportsView.appendChild(emptyMsg('Sem dados mensais'));
+      }
+      else if(currentReportTab==='weekly'){
+        if(!currentContext || !currentContext.monthKey){ reportsView.appendChild(emptyMsg('Selecione um mês.')); return; }
+        const list = DB.cycles.filter(c=> c.monthKey===currentContext.monthKey);
+        const groups = groupBy(list, c=>c.weekKey);
+        const keys = Object.keys(groups).sort().reverse();
+        keys.forEach(wk=>{
+          const tot = groups[wk].reduce((s,c)=>s+c.performance,0);
+          const item = reportItem(`${wk}`, `Pontos: ${tot}`);
+          item.onclick = ()=>{ currentContext.weekKey = wk; setActiveTab('daily'); };
+          reportsView.appendChild(item);
+        })
+        if(keys.length===0) reportsView.appendChild(emptyMsg('Sem semanas neste mês.'));
+      }
+      else if(currentReportTab==='daily'){
+        if(!currentContext || !currentContext.weekKey){ reportsView.appendChild(emptyMsg('Selecione uma semana.')); return; }
+        const list = DB.cycles.filter(c=> c.weekKey===currentContext.weekKey);
+        const groups = groupBy(list, c=>c.dayKey);
+        const keys = Object.keys(groups).sort().reverse();
+        keys.forEach(dk=>{
+          const cycles = groups[dk];
+          const tot = cycles.reduce((s,c)=>s+c.performance,0);
+          const label = `${dk} • ${cycles.length} ciclo(s)`;
+          const item = reportItem(label, `Pontos: ${tot}`);
+          item.onclick = ()=>{
+            // Drill-down: mostra lista de ciclos do dia (com descrições)
+            showDayDetails(dk, cycles);
+          };
+          reportsView.appendChild(item);
+        })
+        if(keys.length===0) reportsView.appendChild(emptyMsg('Sem dias nesta semana.'));
+      }
+    }
+
+    function showDayDetails(dayKey, cycles){
+      reportsView.innerHTML='';
+      const head = document.createElement('div'); head.className='muted'; head.textContent = `Ciclos de ${dayKey}`; reportsView.appendChild(head);
+      cycles.sort((a,b)=> b.date.localeCompare(a.date)).forEach(c=>{
+        const item = document.createElement('div'); item.className='report-item';
+        item.innerHTML = `<div><strong>${c.title}</strong><div class="subtle">★ ${c.performance} • ${Math.floor(c.duration/60)}m</div></div>`;
+        const btn = document.createElement('button'); btn.className='btn'; btn.textContent='Ver';
+        btn.onclick = ()=> openDetail(c);
+        item.appendChild(btn); reportsView.appendChild(item);
+      })
+    }
+
+    function emptyMsg(text){ const d=document.createElement('div'); d.className='muted'; d.textContent=text; return d; }
+    function reportItem(left,right){ const d=document.createElement('div'); d.className='report-item'; d.innerHTML=`<div>${left}</div><div class="badge">${right}</div>`; return d; }
+    function groupBy(arr, fn){ const m={}; arr.forEach(x=>{ const k = fn(x); (m[k]=m[k]||[]).push(x); }); return m; }
+
+    // ======= Pontos (saldo + transações) =======
+    function computePoints(){
+      const fromCycles = DB.cycles.reduce((s,c)=> s + (c.performance||0), 0);
+      const manual = DB.transactions.reduce((s,t)=> s + (t.amount||0), 0);
+      return fromCycles + manual;
+    }
+    function renderPoints(){
+      const total = computePoints();
+      pointsTotal.textContent = total;
+      pointsNow.textContent = total;
+      // Render histórico de transações
+      txList.innerHTML='';
+      if(DB.transactions.length===0){ txList.appendChild(emptyMsg('Sem transações.')); }
+      [...DB.transactions].sort((a,b)=> b.date.localeCompare(a.date)).forEach(t=>{
+        const it = document.createElement('div'); it.className='report-item';
+        it.innerHTML = `<div><strong>${t.title}</strong><div class="subtle">${new Date(t.date).toLocaleString()}</div></div><div class="badge">${t.amount>0?'+':''}${t.amount}</div>`;
+        txList.appendChild(it);
+      })
+    }
+
+    function openPoints(){ pointsModal.classList.remove('hidden'); renderPoints(); }
+    function closePoints(){ pointsModal.classList.add('hidden'); txTitle.value=''; txAmount.value=''; }
+
+    function confirmTransaction(){
+      const title = txTitle.value.trim();
+      const amount = Number(txAmount.value);
+      if(!title) return; // precisa de título
+      if(Number.isNaN(amount) || amount===0) return;
+      // valida saldo para retirada
+      const saldo = computePoints();
+      if(amount < 0 && Math.abs(amount) > saldo){
+        alert('Erro: você não pode remover mais pontos do que possui.');
+        return;
+      }
+      DB.transactions.push({ id: crypto.randomUUID(), date: new Date().toISOString(), title, amount });
+      saveData();
+      renderPoints();
+      renderHistory(); // badge de pontos pode mudar a percepção
+      closePoints();
+    }
+
+    // ======= Wiring de eventos =======
+    btnStart.addEventListener('click', startTimer);
+    btnInterrupt.addEventListener('click', interruptTimer);
+
+    cycleConfirm.addEventListener('click', ()=>{ if(!running) confirmCycle(); });
+    cycleCancel.addEventListener('click', closeCycleModal);
+    cycleClose.addEventListener('click', closeCycleModal);
+
+    detailClose.addEventListener('click', closeDetail);
+    detailOk.addEventListener('click', closeDetail);
+
+    document.getElementById('btnReports').addEventListener('click', openReports);
+    reportsClose.addEventListener('click', closeReports);
+    reportsDone.addEventListener('click', closeReports);
+    reportsBack.addEventListener('click', ()=>{
+      if(currentReportTab==='daily'){ setActiveTab('weekly'); }
+      else if(currentReportTab==='weekly'){ setActiveTab('monthly'); }
+    });
+
+    tabMonthly.addEventListener('click', ()=> setActiveTab('monthly'));
+    tabWeekly.addEventListener('click', ()=> setActiveTab('weekly'));
+    tabDaily.addEventListener('click', ()=> setActiveTab('daily'));
+
+    pointsBadge.addEventListener('click', openPoints);
+    pointsClose.addEventListener('click', closePoints);
+    txCancel.addEventListener('click', closePoints);
+    txConfirm.addEventListener('click', confirmTransaction);
+
+    // ======= Segurança básica para texto =======
+    function escapeHtml(s){
+      return s.replace(/[&<>"']/g, (ch)=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]));
+    }
+
+    // ======= Boot =======
+    function boot(){
+      // Ajusta timer inicial a partir do último ciclo/config? Mantemos padrão 20:00 para primeira vez
+      renderTimer();
+      renderHistory();
+      renderPoints();
+    }
+
+    boot();
+  </script>
+</body>
+</html>
